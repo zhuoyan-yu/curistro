@@ -1,46 +1,18 @@
-<!DOCTYPE html><html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Curistro – Start Teaching</title>
-  <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.js"></script>
-  <link rel="stylesheet" href="/static/style.css">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-
-<body>
-<div class="container card">
-  <h1>Start a New Teaching Session</h1>
-
-  <form id="teachForm" action="/start_teach" method="post">
-    <div class="form-group">
-      <label for="title">Topic Title</label>
-      <input id="title" name="title" placeholder="Enter topic title" required>
-    </div>
-
-    <div class="form-group">
-      <label for="content">Initial Explanation</label>
-      <textarea id="content" name="content" placeholder="Explain the concept…" required></textarea>
-    </div>
-
-    <div class="form-group">
-      <label for="category">Category</label>
-      <input id="category" name="category" placeholder="e.g. Computer Science" required>
-    </div>
-
-    <div class="form-group">
-      <label for="related">Related Topics (comma-separated)</label>
-      <input id="related" name="related" placeholder="#datastructures, #algorithms">
-    </div>
-
-    <button>Start Conversation</button>
-  </form>
-</div>
-
-<script>
-document.getElementById('teachForm')
-        .addEventListener('submit', ()=> NProgress.start());
-</script>
-</body>
-</html>
+{% extends 'base.html' %}
+{% block title %}Curistro — Start teaching{% endblock %}
+{% block content %}
+<p class="eyebrow">01 / TEACH</p>
+<h1>How would you explain it?</h1>
+<p class="lead">Teach an AI student a concept. Explore its questions, hear it explain the idea back, then review what it could answer.</p>
+<form id="teachForm" class="card" action="{{ url_for('start_teach') }}" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="form-group"><label for="title">Topic title</label><input id="title" name="title" required maxlength="120" placeholder="e.g. Photosynthesis"></div>
+  <div class="form-group"><label for="content">Your explanation</label><textarea id="content" name="content" required maxlength="8000" rows="6" placeholder="Explain the idea as if your student is hearing it for the first time."></textarea></div>
+  <div class="form-grid">
+    <div class="form-group"><label for="category">Category</label><input id="category" name="category" required maxlength="80" placeholder="e.g. Science"></div>
+    <div class="form-group"><label for="related">Related topics <span class="muted">(optional)</span></label><input id="related" name="related" maxlength="500" placeholder="Existing topic titles, separated by commas"></div>
+  </div>
+  <div class="actions"><button type="submit">Start conversation</button><button id="exampleBtn" class="secondary" type="button">Use an example</button></div>
+</form>
+{% if nodes %}<section class="card"><h2>Topics in this browser session</h2><ul class="topic-list">{% for node in nodes %}<li><a href="{{ url_for('conversation', node_id=node.id) }}">{{ node.title }}</a><span class="muted">{{ node.category }}</span></li>{% endfor %}</ul><p class="muted">Use one of these titles in Related topics to connect your knowledge map.</p></section>{% endif %}
+{% endblock %}

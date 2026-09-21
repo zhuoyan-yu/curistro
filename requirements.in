@@ -1,0 +1,7 @@
+# Direct runtime dependencies; requirements.txt pins the tested resolution.
+Flask>=3.1,<4
+openai>=1.68,<3
+python-dotenv>=1,<2
+pydantic>=2.10,<3
+fpdf2>=2.8,<3
+waitress>=3,<4
