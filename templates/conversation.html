@@ -1,0 +1,136 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Curistro – Conversation</title>
+
+  <!-- libs -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<div class="container">
+  <h1>Conversation – “{{ node.title }}”</h1>
+
+  <div id="conversation" class="conversation">
+    {% for m in node.conversation %}
+      <div class="message {{ m.role }}">{{ m.message }}</div>
+    {% endfor %}
+  </div>
+
+  <!-- chat box -->
+  <form id="msgForm" class="card">
+      <textarea id="message" placeholder="Enter your message…" required></textarea>
+      <button style="margin-top:.5rem">Send</button>
+  </form>
+
+  <!-- speech controls -->
+  <div style="margin:.4rem 0">
+     <button id="ttsBtn">🔊 Read last AI reply</button>
+     <button id="recBtn" style="margin-left:.6rem">🎤 Speak</button>
+  </div>
+
+  <!-- explain-back -->
+  <button id="explainBtn"
+          style="margin:.6rem 0;padding:.5rem 1rem;border:1px solid var(--primary);
+                 background:#fff;color:var(--primary);border-radius:var(--radius);">
+     Explain-Back
+  </button>
+
+  <!-- finish -->
+  <form id="finishForm" action="{{ url_for('finish', node_id=node.id) }}"
+        method="post" style="text-align:center">
+        <button style="background:#ef4444">Finish & Evaluate</button>
+  </form>
+
+  <a class="back-link" href="/">&#8592; Home</a>
+</div>
+
+<!-- overlay spinner -->
+<div id="spinner" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,.6);
+             align-items:center;justify-content:center;z-index:9999"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+const convo = document.getElementById('conversation');
+const spin  = document.getElementById('spinner');
+const form  = document.getElementById('msgForm');
+
+/* --- tiny Markdown bold helper --- */
+function mdLite(txt){ return txt.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>'); }
+
+/* ---------- send & stream ---------- */
+form.addEventListener('submit', async e=>{
+  e.preventDefault();
+  const text = message.value.trim(); if(!text) return;
+
+  convo.insertAdjacentHTML('beforeend', `<div class="message user">${text}</div>`);
+  convo.scrollTop = convo.scrollHeight; message.value=''; spin.style.display='flex';
+
+  await fetch('/send/{{ node.id }}',{method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:new URLSearchParams({message:text})});
+
+  const es = new EventSource('/stream/{{ node.id }}');
+  let aiBuf='';
+  es.onmessage = ev=>{
+     aiBuf += ev.data;
+     let last = convo.querySelector('.message.ai:last-child');
+     if(!last){
+        convo.insertAdjacentHTML('beforeend','<div class="message ai"></div>');
+        last = convo.querySelector('.message.ai:last-child');
+     }
+     last.innerHTML = mdLite(aiBuf);
+     convo.scrollTop = convo.scrollHeight;
+  };
+  es.addEventListener('done',()=>{ es.close(); spin.style.display='none'; });
+});
+
+/* ---------- explain-back ---------- */
+document.getElementById('explainBtn').onclick = async()=>{
+  NProgress.start(); spin.style.display='flex';
+  const res = await fetch('/explain/{{ node.id }}');
+  const data = await res.json();
+  convo.insertAdjacentHTML('beforeend', `<div class="message ai">${mdLite(data.text)}</div>`);
+  convo.scrollTop = convo.scrollHeight;
+  spin.style.display='none'; NProgress.done();
+};
+
+/* ---------- text-to-speech ---------- */
+document.getElementById('ttsBtn').onclick = async ()=>{
+  const last = convo.querySelector('.message.ai:last-child');
+  if(!last) return;
+  const r = await fetch('/speak',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({text:last.textContent.slice(0,4096)})});
+  const blob = await r.blob();
+  new Audio(URL.createObjectURL(blob)).play();
+};
+
+/* ---------- speech-to-text ---------- */
+let mediaRec, audChunks=[];
+recBtn.onclick = async ()=>{
+  if(!mediaRec){
+     const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+     mediaRec = new MediaRecorder(stream, {mimeType:'audio/webm'});
+     mediaRec.ondataavailable = e=>{ if(e.data.size) audChunks.push(e.data); };
+     mediaRec.onstop = async ()=>{
+        const blob = new Blob(audChunks,{type:'audio/webm'}); audChunks=[];
+        if(blob.size === 0){ recBtn.textContent='🎤 Speak'; return; }
+        const fd = new FormData(); fd.append('file', blob, 'speech.webm');
+        const j   = await (await fetch('/transcribe',{method:'POST',body:fd})).json();
+        message.value = j.text || '';
+        recBtn.textContent='🎤 Speak';
+     };
+  }
+  if(mediaRec.state==='inactive'){ mediaRec.start(); recBtn.textContent='⏹ Stop'; }
+  else { mediaRec.stop(); }
+};
+
+/* ---------- show spinner on finish ---------- */
+document.getElementById('finishForm').onsubmit = ()=>{NProgress.start();spin.style.display='flex';};
+</script>
+</body></html>

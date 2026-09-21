@@ -1,0 +1,150 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8"><title>Curistro – Results</title>
+
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.js"></script>
+
+  <link rel="stylesheet" href="/static/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>addEventListener('DOMContentLoaded',()=>NProgress.done())</script>
+</head><body>
+<div class="container">
+   <h1>Evaluation Results for “{{ node.title }}”</h1>
+
+   <!-- quiz -->
+   <div class="result-section">
+       <h3>Quiz Questions</h3>
+       {% if node.generated_quiz %}
+         <ol>
+         {% for q in node.generated_quiz.questions %}
+            <li style="margin-bottom:1rem">
+              <strong>{{ q.zh_dim }}:</strong> {{ q.question }}<br>
+              <ol type="A">{% for o in q.options %}<li>{{ o }}</li>{% endfor %}</ol>
+              <p><em>Correct:</em> {{ q.answer }}</p>
+            </li>{% endfor %}
+         </ol>
+       {% endif %}
+   </div>
+
+   <!-- report -->
+   <div class="result-section">
+       <h3>Evaluation Report</h3>
+       <p><strong>Score:</strong> {{ node.quiz_report.correct }} / {{ node.quiz_report.total }}</p>
+       <ol>
+       {% for d in node.quiz_report.details %}
+          <li style="margin-bottom:.8rem">
+            <p><strong>Question:</strong> {{ d.question }}</p>
+            <p><strong>AI Analysis:</strong> {{ d.analysis }}</p>
+            <p><strong>Correct:</strong> {{ "Yes" if d.correct else "No" }}</p>
+          </li>{% endfor %}
+       </ol>
+   </div>
+
+   <!-- adaptive recap -->
+   {% if node.recap %}
+     <div class="result-section" id="recapSection">
+        <h3>Adaptive Recap</h3><p>{{ node.recap }}</p>
+     </div>
+   {% else %}
+     <div class="result-section" id="recapSection" style="text-align:center">
+        <button id="recapBtn">Generate Adaptive Recap</button>
+     </div>
+   {% endif %}
+
+   <!-- knowledge map + export -->
+   <div class="result-section" id="mapBox" style="text-align:center">
+        <button id="mapBtn">Show Knowledge Map</button>
+        <button id="mdBtn" style="margin-left:.8rem">Download Markdown</button>
+        <button id="pdfBtn" style="margin-left:.4rem">Download PDF</button>
+        <div id="mapArea"></div>
+   </div>
+
+   <a class="back-link" href="/">&#8592; Home</a>
+   <footer style="margin-top:2rem;font-size:.85rem;color:#64748b">© 2025 Curistro</footer>
+</div>
+
+<!-- libs -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+
+<script>
+
+function mdLite(txt){
+  return txt.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+}
+
+
+
+/* ---------- recap on-demand ---------- */
+const recapBtn=document.getElementById('recapBtn');
+if(recapBtn){
+  recapBtn.addEventListener('click',async()=>{
+     NProgress.start(); recapBtn.disabled=true; recapBtn.textContent='Working…';
+     const data=await (await fetch('/recap/{{ node.id }}')).json();
+     const recapHTML = mdLite(data.recap);          // keep **bold**
+     document.getElementById('recapSection').innerHTML =
+        `<h3>Adaptive Recap</h3><div class="recap-block">${recapHTML}</div>`;
+     NProgress.done();
+  });
+}
+
+/* ---------- knowledge map ---------- */
+document.getElementById('mapBtn').addEventListener('click',async()=>{
+  NProgress.start(); const data=await (await fetch('/map_data')).json(); drawMap(data); NProgress.done();
+});
+function drawMap({nodes,links}){
+  // ---------- keep buttons; only redraw the SVG ----------
+  let area = document.getElementById('mapArea');
+  if(!area){
+      area = d3.select('#mapBox').append('div')
+               .attr('id','mapArea').node();
+  }else{
+      area.innerHTML = '';                    // clear previous SVG
+  }
+
+  const w = 700, h = 420;
+  const svg = d3.select(area).append('svg')
+                .attr('viewBox',`0 0 ${w} ${h}`)
+                .style('width','100%');
+
+  const sim = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d=>d.id).distance(120))
+        .force('charge', d3.forceManyBody().strength(-280))
+        .force('center', d3.forceCenter(w/2,h/2));
+
+  svg.append('g').attr('stroke','#94a3b8').attr('stroke-dasharray','4,3')
+     .selectAll('line').data(links).enter().append('line');
+
+  const g = svg.append('g').selectAll('g').data(nodes).enter().append('g')
+      .call(d3.drag()
+            .on('start',eventStart)
+            .on('drag',eventDrag)
+            .on('end',eventEnd));
+
+  g.append('circle')
+     .attr('r', d=>8+Math.sqrt(d.weight)*4)
+     .attr('fill', d=>d.color)
+     .attr('stroke','#fff').attr('stroke-width',1.8);
+
+  g.append('title').text(d=>d.label);
+  g.append('text').text(d=>d.label).attr('x',12).attr('y',4)
+                 .style('font-size','.75rem');
+
+  sim.on('tick',()=>{
+    svg.selectAll('line')
+       .attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+       .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    g.attr('transform',d=>`translate(${d.x},${d.y})`);
+  });
+
+  function eventStart(event,d){if(!event.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;}
+  function eventDrag(event,d){d.fx=event.x;d.fy=event.y;}
+  function eventEnd(event,d){if(!event.active)sim.alphaTarget(0);d.fx=d.fy=null;}
+}
+
+/* ---------- export ---------- */
+document.getElementById('mdBtn').onclick=()=>location=`/summary/{{ node.id }}?fmt=md`;
+document.getElementById('pdfBtn').onclick=()=>location=`/summary/{{ node.id }}?fmt=pdf`;
+</script>
+</body></html>

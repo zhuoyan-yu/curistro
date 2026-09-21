@@ -1,0 +1,46 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Curistro – Start Teaching</title>
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<div class="container card">
+  <h1>Start a New Teaching Session</h1>
+
+  <form id="teachForm" action="/start_teach" method="post">
+    <div class="form-group">
+      <label for="title">Topic Title</label>
+      <input id="title" name="title" placeholder="Enter topic title" required>
+    </div>
+
+    <div class="form-group">
+      <label for="content">Initial Explanation</label>
+      <textarea id="content" name="content" placeholder="Explain the concept…" required></textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="category">Category</label>
+      <input id="category" name="category" placeholder="e.g. Computer Science" required>
+    </div>
+
+    <div class="form-group">
+      <label for="related">Related Topics (comma-separated)</label>
+      <input id="related" name="related" placeholder="#datastructures, #algorithms">
+    </div>
+
+    <button>Start Conversation</button>
+  </form>
+</div>
+
+<script>
+document.getElementById('teachForm')
+        .addEventListener('submit', ()=> NProgress.start());
+</script>
+</body>
+</html>
